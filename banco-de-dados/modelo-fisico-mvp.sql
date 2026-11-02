@@ -1,7 +1,7 @@
 -- Modelo físico de referência do FileMind MVP.
 -- Data: 29/10/2026.
 -- Não é uma migração e não deve ser executado automaticamente sobre o banco atual.
--- A dimensão do vetor será fixada depois da escolha do modelo de embeddings.
+-- Embeddings: Amazon Titan Text Embeddings V2, dimensão 1024.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS tb_chunks_arquivo (
     arquivo_id BIGINT NOT NULL,
     indice INTEGER NOT NULL,
     conteudo TEXT NOT NULL,
-    embedding vector NOT NULL,
+    embedding vector(1024) NOT NULL,
     metadados JSONB NOT NULL DEFAULT '{}'::jsonb,
     criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -84,9 +84,8 @@ CREATE INDEX IF NOT EXISTS idx_arquivos_usuario_status
 CREATE INDEX IF NOT EXISTS idx_chunks_arquivo_id
     ON tb_chunks_arquivo (arquivo_id);
 
--- Índice vetorial intencionalmente pendente.
--- Depois de escolher o modelo de embeddings, fixar embedding como vector(N)
--- e avaliar HNSW ou IVFFlat conforme o volume e a estratégia de busca.
+-- Índice vetorial intencionalmente adiado no MVP.
+-- Avaliar HNSW ou IVFFlat somente após validar o fluxo completo e medir o volume.
 
 COMMENT ON COLUMN tb_usuarios.senha IS
     'Hash seguro da senha; nunca armazenar senha em texto puro.';
@@ -101,4 +100,4 @@ COMMENT ON COLUMN tb_arquivos.hash_conteudo IS
     'SHA-256 do conteúdo atual, usado para detectar reprocessamento da mesma versão.';
 
 COMMENT ON COLUMN tb_chunks_arquivo.embedding IS
-    'Vetor sem dimensão fixa enquanto o modelo de embeddings não estiver definido.';
+    'Vetor de 1024 dimensões gerado pelo Amazon Titan Text Embeddings V2.';

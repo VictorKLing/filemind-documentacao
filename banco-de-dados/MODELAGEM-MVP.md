@@ -77,9 +77,9 @@ No MVP, uma reindexação deverá substituir os chunks do arquivo dentro de uma 
 
 ### 3.6. Dimensão do embedding
 
-O grupo ainda precisa escolher o modelo que gerará os embeddings. Como a dimensão depende desse modelo, o SQL de referência usa `vector` sem dimensão fixa e não cria índice HNSW ou IVFFlat.
+O RAG do MVP utilizará Amazon Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`) com a dimensão padrão de 1.024 valores. A coluna será `vector(1024)` e a busca utilizará distância de cosseno.
 
-Para o volume acadêmico do MVP, a busca exata é suficiente. Depois da escolha do modelo, uma migração poderá fixar `vector(N)` e adicionar um índice vetorial compatível.
+Para o volume acadêmico do MVP, a busca exata é suficiente. HNSW ou IVFFlat só serão avaliados depois que o fluxo completo estiver validado e houver volume que justifique o índice aproximado.
 
 ## 4. Modelo conceitual
 
@@ -119,7 +119,7 @@ erDiagram
         BIGINT arquivo_id FK
         INTEGER indice
         TEXT conteudo
-        VECTOR embedding
+        VECTOR_1024 embedding
         JSONB metadados
         TIMESTAMPTZ criado_em
     }
@@ -174,7 +174,7 @@ Regras adicionais:
 | `arquivo_id` | inteiro longo | sim | arquivo de origem; chave estrangeira |
 | `indice` | inteiro | sim | posição do chunk no arquivo, iniciada em zero |
 | `conteudo` | texto longo | sim | trecho utilizado na recuperação |
-| `embedding` | vetor | sim | dimensão definida pelo modelo escolhido |
+| `embedding` | vetor de 1.024 posições | sim | gerado pelo Amazon Titan Text Embeddings V2 |
 | `metadados` | JSONB | sim | seção, linhas e outros dados específicos do trecho |
 | `criado_em` | data e hora com fuso | sim | momento de criação do chunk |
 
@@ -223,15 +223,16 @@ Para alcançar este modelo, ainda será necessário:
 
 ## 9. Pontos críticos ainda pendentes
 
-Os seguintes itens precisam ser confirmados antes da implementação física definitiva:
+O provedor e a dimensão dos embeddings foram definidos: Amazon Bedrock, Titan Text Embeddings V2 e `vector(1024)`.
 
-1. provedor e modelo de embeddings;
-2. dimensão do vetor produzida pelo modelo;
-3. estratégia de autenticação da API;
-4. regra de substituição ou atualização do conteúdo do arquivo;
-5. ferramenta e sequência de migrações do banco.
+Os seguintes itens ainda precisam ser confirmados antes de aplicar o modelo em ambiente compartilhado:
 
-Esses pontos não impedem a aprovação do modelo conceitual e lógico. A dimensão do vetor e o formato das migrações deverão ser resolvidos antes de executar o SQL em um ambiente compartilhado.
+1. estratégia de autenticação da API;
+2. regra de substituição ou atualização do conteúdo do arquivo;
+3. ferramenta e sequência de migrações do banco;
+4. permissões mínimas da IAM Role para invocar os modelos escolhidos.
+
+Esses pontos não impedem a aprovação do modelo conceitual e lógico. O formato das migrações deverá ser resolvido antes de executar o SQL em um ambiente compartilhado.
 
 ## 10. Artefato físico de referência
 
