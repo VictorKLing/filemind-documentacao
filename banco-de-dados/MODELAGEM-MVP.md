@@ -75,9 +75,11 @@ O JSONB conterá apenas informações opcionais ou extensíveis, como título, a
 
 No MVP, uma reindexação deverá substituir os chunks do arquivo dentro de uma transação. Um histórico de versões poderá ser modelado futuramente, se necessário.
 
-### 3.6. Dimensão do embedding
+### 3.6. Dimensão e portabilidade do embedding
 
-O RAG do MVP utilizará Amazon Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`) com a dimensão padrão de 1.024 valores. A coluna será `vector(1024)` e a busca utilizará distância de cosseno.
+O MVP utilizará vetores de 1.024 posições. No desenvolvimento, o modelo padrão será BGE-M3 executado localmente pelo Ollama. A coluna será `vector(1024)` e a busca utilizará distância de cosseno.
+
+O provedor, modelo e versão usados na indexação ficarão registrados no arquivo. Trocar o modelo exige reindexar seus chunks, mesmo quando a dimensão continuar igual.
 
 Para o volume acadêmico do MVP, a busca exata é suficiente. HNSW ou IVFFlat só serão avaliados depois que o fluxo completo estiver validado e houver volume que justifique o índice aproximado.
 
@@ -110,6 +112,10 @@ erDiagram
         JSONB metadados
         VARCHAR status_rag
         VARCHAR erro_processamento
+        VARCHAR embedding_provedor
+        VARCHAR embedding_modelo
+        VARCHAR embedding_versao
+        INTEGER embedding_dimensao
         TIMESTAMPTZ criado_em
         TIMESTAMPTZ atualizado_em
     }
@@ -156,6 +162,10 @@ O nome da coluna `senha` foi mantido para reduzir divergência com a entidade Ja
 | `metadados` | JSONB | sim | dados opcionais; padrão `{}` |
 | `status_rag` | texto curto | sim | `ENVIADO`, `PROCESSANDO`, `PROCESSADO` ou `ERRO` |
 | `erro_processamento` | texto | não | resumo técnico controlado da última falha |
+| `embedding_provedor` | texto curto | não | adaptador usado, por exemplo `ollama` |
+| `embedding_modelo` | texto | não | identificador do modelo, por exemplo `bge-m3:567m` |
+| `embedding_versao` | texto | não | versão imutável ou digest usado na indexação |
+| `embedding_dimensao` | inteiro | não | `1024` no modelo atual |
 | `criado_em` | data e hora com fuso | sim | criação no FileMind |
 | `atualizado_em` | data e hora com fuso | sim | última alteração no FileMind |
 
@@ -163,6 +173,7 @@ Regras adicionais:
 
 - `s3_key` não será exposta ao frontend;
 - `(usuario_id, caminho_virtual)` será único;
+- arquivos `PROCESSADO` deverão informar provedor, modelo, versão e dimensão;
 - datas originais eventualmente recebidas ficarão em `metadados`, com nomes explícitos;
 - o caminho local do computador do usuário não será persistido.
 
@@ -174,7 +185,7 @@ Regras adicionais:
 | `arquivo_id` | inteiro longo | sim | arquivo de origem; chave estrangeira |
 | `indice` | inteiro | sim | posição do chunk no arquivo, iniciada em zero |
 | `conteudo` | texto longo | sim | trecho utilizado na recuperação |
-| `embedding` | vetor de 1.024 posições | sim | gerado pelo Amazon Titan Text Embeddings V2 |
+| `embedding` | vetor de 1.024 posições | sim | gerado pelo `EmbeddingProvider` configurado |
 | `metadados` | JSONB | sim | seção, linhas e outros dados específicos do trecho |
 | `criado_em` | data e hora com fuso | sim | momento de criação do chunk |
 
@@ -193,7 +204,7 @@ Regras adicionais:
 4. Envia o arquivo ao S3.
 5. Registra o arquivo com estado `ENVIADO`.
 6. Altera o estado para `PROCESSANDO`.
-7. Divide o Markdown em chunks e gera os embeddings.
+7. Divide o Markdown em chunks e gera os embeddings pelo provedor configurado.
 8. Substitui os chunks do arquivo em uma transação.
 9. Marca o arquivo como `PROCESSADO` ou `ERRO`.
 10. Na consulta, filtra os chunks pelo usuário e considera apenas arquivos `PROCESSADO`.
@@ -218,19 +229,20 @@ Para alcançar este modelo, ainda será necessário:
 5. implementar autenticação e obter o proprietário do contexto autenticado;
 6. deixar de receber `idUsuario` como prova de propriedade;
 7. retirar `s3_key` das respostas públicas e dos metadados duplicados;
-8. implementar chunking, embeddings e recuperação filtrada por usuário;
+8. implementar chunking, contrato de embeddings e recuperação filtrada por usuário/modelo;
 9. transformar o SQL final em migrações versionadas antes de substituir `ddl-auto=update`.
 
 ## 9. Pontos críticos ainda pendentes
 
-O provedor e a dimensão dos embeddings foram definidos: Amazon Bedrock, Titan Text Embeddings V2 e `vector(1024)`.
+A dimensão foi definida como `vector(1024)`. BGE-M3/Ollama será o padrão local, mas a arquitetura aceitará provedores alternativos por adaptadores.
 
 Os seguintes itens ainda precisam ser confirmados antes de aplicar o modelo em ambiente compartilhado:
 
 1. estratégia de autenticação da API;
 2. regra de substituição ou atualização do conteúdo do arquivo;
 3. ferramenta e sequência de migrações do banco;
-4. permissões mínimas da IAM Role para invocar os modelos escolhidos.
+4. modelo de resposta local adequado à máquina de desenvolvimento;
+5. provedor cloud de produção, somente depois de benchmark de qualidade, custo e privacidade.
 
 Esses pontos não impedem a aprovação do modelo conceitual e lógico. O formato das migrações deverá ser resolvido antes de executar o SQL em um ambiente compartilhado.
 
