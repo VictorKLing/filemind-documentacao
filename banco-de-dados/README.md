@@ -16,7 +16,7 @@ Em 29/10/2026 foi preparada uma modelagem-alvo alinhada ao escopo de Markdown, S
 - [`modelo-fisico-mvp.sql`](modelo-fisico-mvp.sql): DDL de referência para usuários, arquivos e chunks;
 - [`prototipo-mvp.sql`](prototipo-mvp.sql): fotografia preservada das entidades implementadas em 14/10/2026.
 
-O protótipo antigo não foi substituído porque ele documenta o estado observado do backend. A nova modelagem representa o destino pretendido e ainda precisa ser convertida em migrações versionadas antes de ser aplicada ao banco atual.
+O protótipo antigo não foi substituído porque ele documenta o estado observado do backend em 14/10/2026. Desde 02/11/2026 a nova modelagem está implementada no backend por migrations Flyway (V1 a V3); a situação atual está na seção 8 de [`MODELAGEM-MVP.md`](MODELAGEM-MVP.md).
 
 ## O que já existe no backend
 

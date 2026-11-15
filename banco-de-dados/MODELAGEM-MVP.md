@@ -2,7 +2,7 @@
 
 Data da modelagem: 29/10/2026.
 
-Status: modelo-alvo para revisão e implementação. Não representa uma migração já executada.
+Status: implementado no `filemind-backend` pelas migrations Flyway V1 a V3 (PRs #3 e #4, mescladas em 02/11/2026) e validado no CI em PostgreSQL 16 com pgvector. Documento atualizado em 15/11/2026.
 
 ## 1. Objetivo
 
@@ -216,38 +216,57 @@ Regras adicionais:
 - A remoção entre S3 e PostgreSQL precisa ser coordenada pelo serviço; uma transação de banco não desfaz automaticamente uma chamada ao S3.
 - O conteúdo de `erro_processamento` não deverá conter credenciais, conteúdo integral do arquivo ou respostas sensíveis de provedores externos.
 
-## 8. Evolução a partir do backend atual
+## 8. Situação no backend
 
-O backend existente já possui `tb_usuarios`, `tb_arquivos`, vínculo de propriedade, metadados JSONB, `s3_key` e `status_rag`.
+Implementado e validado:
 
-Para alcançar este modelo, ainda será necessário:
+1. Flyway cria e altera o esquema; o Hibernate roda com `ddl-auto=validate` e apenas confere se as entidades batem com as tabelas;
+2. `V1__criar_e_evoluir_estrutura_base.sql` cria ou evolui `tb_usuarios` e `tb_arquivos`, com caminho virtual, hash, datas, erro de processamento, dados do embedding, checagens e índices únicos;
+3. `V2__adicionar_pgvector_e_chunks.sql` habilita o pgvector e cria `tb_chunks_arquivo` com `vector(1024)`;
+4. `V3__alinhar_hash_conteudo_com_hibernate.sql` converte `hash_conteudo` para `VARCHAR(64)`;
+5. upload restrito a Markdown, cálculo do SHA-256, caminho virtual na raiz e `s3_key` fora das respostas;
+6. entidade `ChunkArquivo` e consulta por distância de cosseno filtrada por usuário, estado `PROCESSADO` e provedor, modelo e versão do embedding;
+7. teste de integração no GitHub Actions contra PostgreSQL 16 com pgvector real;
+8. senha gravada como hash BCrypt (PR #5 do backend, em revisão).
 
-1. habilitar a extensão pgvector no ambiente PostgreSQL;
-2. adicionar caminho virtual, hash, datas e erro de processamento ao arquivo;
-3. restringir uploads a Markdown;
-4. criar `tb_chunks_arquivo`;
-5. implementar autenticação e obter o proprietário do contexto autenticado;
-6. deixar de receber `idUsuario` como prova de propriedade;
-7. retirar `s3_key` das respostas públicas e dos metadados duplicados;
-8. implementar chunking, contrato de embeddings e recuperação filtrada por usuário/modelo;
-9. transformar o SQL final em migrações versionadas antes de substituir `ddl-auto=update`.
+Ainda depende de outras frentes:
 
-## 9. Pontos críticos ainda pendentes
+1. autenticação da API, usando o usuário autenticado no lugar do `idUsuario` enviado pelo cliente;
+2. divisor de Markdown, `EmbeddingProvider`, indexação e endpoint de pergunta, conforme a [arquitetura do RAG](../rag/ARQUITETURA-RAG-MVP.md);
+3. download, exclusão e substituição de arquivos.
 
-A dimensão foi definida como `vector(1024)`. BGE-M3/Ollama será o padrão local, mas a arquitetura aceitará provedores alternativos por adaptadores.
+## 9. Pontos ainda pendentes
 
-Os seguintes itens ainda precisam ser confirmados antes de aplicar o modelo em ambiente compartilhado:
+A dimensão foi definida como `vector(1024)`. BGE-M3/Ollama será o padrão local, mas a arquitetura aceitará provedores alternativos por adaptadores. A ferramenta de migração foi definida: Flyway.
+
+Ainda precisam de decisão do grupo:
 
 1. estratégia de autenticação da API;
 2. regra de substituição ou atualização do conteúdo do arquivo;
-3. ferramenta e sequência de migrações do banco;
-4. modelo de resposta local adequado à máquina de desenvolvimento;
-5. provedor cloud de produção, somente depois de benchmark de qualidade, custo e privacidade.
+3. modelo de resposta local adequado à máquina de desenvolvimento;
+4. provedor cloud de produção, somente depois de benchmark de qualidade, custo e privacidade;
+5. diferenças com o protótipo do frontend: o login usa e-mail, e o banco guarda `usuario`; as pastas têm cor, e o banco guarda só `caminho_virtual`.
 
-Esses pontos não impedem a aprovação do modelo conceitual e lógico. O formato das migrações deverá ser resolvido antes de executar o SQL em um ambiente compartilhado.
+Só o item 5 pode exigir uma nova migration, caso o grupo decida guardar e-mail ou criar uma tabela de pastas.
 
-## 10. Artefato físico de referência
+## 10. Aplicação em um banco que já existe
 
-O arquivo [`modelo-fisico-mvp.sql`](modelo-fisico-mvp.sql) materializa esta proposta para revisão. Ele não deve ser executado automaticamente sobre o banco atual: `CREATE TABLE IF NOT EXISTS` não altera tabelas que já existem.
+O Flyway registra as versões executadas na tabela `flyway_schema_history`. Um banco vazio recebe V1 a V3 na primeira inicialização do backend, sem passo manual.
 
-Depois da aprovação, o grupo deverá converter as diferenças necessárias em migrações versionadas e validá-las em um banco descartável antes de aplicar em qualquer ambiente compartilhado.
+Num banco que já tem tabelas criadas pelo antigo `ddl-auto=update`, como o RDS do grupo:
+
+1. fazer um snapshot do banco antes;
+2. confirmar que o pgvector está disponível: `SELECT name, default_version FROM pg_available_extensions WHERE name = 'vector';`;
+3. a V2 já executa `CREATE EXTENSION IF NOT EXISTS vector`; se o usuário da aplicação não tiver permissão para isso, o usuário master executa esse comando uma vez antes;
+4. iniciar o backend uma única vez com `DB_FLYWAY_BASELINE_ON_MIGRATE=true`, para o Flyway aceitar o esquema existente como versão 0 e aplicar V1 a V3 sobre ele;
+5. voltar a variável para `false` nas inicializações seguintes.
+
+A V1 foi escrita para esse caso: preenche o caminho dos arquivos antigos com `/legado/<id>/<nome>` e cria as checagens como `NOT VALID`, para que linhas antigas, como arquivos de teste de outro formato, não bloqueiem a migração. As linhas novas passam por todas as checagens.
+
+Usuários criados antes do hash continuam com a senha em texto puro e devem ser recriados ou removidos.
+
+## 11. Artefatos de referência
+
+As migrations em `filemind-backend/src/main/resources/db/migration` são a fonte oficial do esquema.
+
+O arquivo [`modelo-fisico-mvp.sql`](modelo-fisico-mvp.sql) é a proposta de 29/10/2026 que originou as migrations e fica como referência de leitura. Ele não deve ser executado sobre um banco existente: `CREATE TABLE IF NOT EXISTS` não altera tabelas que já existem.
