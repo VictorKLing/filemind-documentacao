@@ -1,12 +1,22 @@
 # Protótipo do banco de dados — MVP
 
-Data da consolidação: 14/10/2026.
+Data da consolidação inicial: 14/10/2026.
 
 ## Objetivo
 
 Documentar o menor modelo de banco que corresponde ao backend atualmente implementado e permite demonstrar a aplicação conectada ao PostgreSQL.
 
 Este é um protótipo do MVP, não o modelo definitivo do FileMind.
+
+## Evolução da modelagem
+
+Em 29/10/2026 foi preparada uma modelagem-alvo alinhada ao escopo de Markdown, S3, PostgreSQL, pgvector e RAG:
+
+- [`MODELAGEM-MVP.md`](MODELAGEM-MVP.md): modelo conceitual, lógico, regras e pendências técnicas;
+- [`modelo-fisico-mvp.sql`](modelo-fisico-mvp.sql): DDL de referência para usuários, arquivos e chunks;
+- [`prototipo-mvp.sql`](prototipo-mvp.sql): fotografia preservada das entidades implementadas em 14/10/2026.
+
+O protótipo antigo não foi substituído porque ele documenta o estado observado do backend em 14/10/2026. Desde 02/11/2026 a nova modelagem está implementada no backend por migrations Flyway (V1 a V3); a situação atual está na seção 8 de [`MODELAGEM-MVP.md`](MODELAGEM-MVP.md).
 
 ## O que já existe no backend
 

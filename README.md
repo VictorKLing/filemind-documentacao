@@ -6,6 +6,10 @@ Documentação compartilhada do projeto acadêmico FileMind.
 
 - [Protótipo do banco de dados do MVP](banco-de-dados/README.md)
 - [SQL de referência do protótipo](banco-de-dados/prototipo-mvp.sql)
+- [Modelagem do banco para o escopo atual](banco-de-dados/MODELAGEM-MVP.md)
+- [Modelo físico de referência](banco-de-dados/modelo-fisico-mvp.sql)
+- [Escopo e regras de negócio do MVP](regras-de-negocio/ESCOPO-MVP.md)
+- [Arquitetura do RAG do MVP](rag/ARQUITETURA-RAG-MVP.md)
 
 ## Repositórios do projeto
 
